@@ -2,5 +2,7 @@ Suite: stable
 Codename: stable
 Architectures: iphoneos-arm64
 Components: main
-Description: blu-tek repo
+Origin: blu-tek's repo
+Label: blu-tek's repo
+Description: blu-tek's repo
 Date: Tue, 06 Oct 2026 00:00:00 +0000
