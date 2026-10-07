@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>blu-tek source</title>
+    <meta http-equiv="refresh" content="0; url=../repo-site/">
+    <script>
+        if (navigator.userAgent.toLowerCase().includes('sileo') || navigator.userAgent.toLowerCase().includes('cydia') || navigator.userAgent.toLowerCase().includes('zbra')) {
+            window.stop();
+        } else {
+            window.location.replace('/repo-site/');
+        }
+    </script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #000;
+            color: #fff;
+        }
+        .container {
+            text-align: center;
+        }
+        a {
+            color: #4a9eff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <p>Redirecting to the <a href="/repo-site/">source page</a>…</p>
+    </div>
+</body>
+</html>
