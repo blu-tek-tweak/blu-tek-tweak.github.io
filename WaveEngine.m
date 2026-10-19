@@ -5,8 +5,12 @@
 
 static const CGFloat kSpringStiffness  = 155.0;
 static const CGFloat kSpringMass       = 1.5;
-static const CGFloat kSpringDamping    = 22.0;
 static const CGFloat kSpringVelocity   = 0.0;
+// Dock: damping now tracks pull speed (like the icons). p=0 (slowest) -> max
+// damping (25, snappy); p=1 (fastest) -> min damping (21, bouncier). The old
+// fixed 22 sits near the midpoint of this range.
+static const CGFloat kDockDampingMin   = 21.0;
+static const CGFloat kDockDampingMax   = 25.0;
 
 // The first N waves (center-out) should land with almost no bounce AND be fast.
 // A stiffer spring settles quickly; damping at ~92% of critical keeps overshoot
@@ -25,10 +29,11 @@ static const CGFloat   kNoBounceStiffness = 300.0;  // fast take-off + quick set
 // frequency -> slower, floatier motion; higher damping (closer to critical) makes
 // the overshoot smaller -> a shallower give. Was stiffness 55 / damping 12-14.
 static const CGFloat kOuterWaveStiffness  = 38.0;   // softer -> slower bounce
-static const CGFloat kOuterWaveDampingMin = 6.6;   // fastest pull (was 10.6; reduced a further 4)
+static const CGFloat kOuterWaveDampingMin = 10.6;   // fastest pull (z~0.70) [iPad]
 static const CGFloat kOuterWaveDampingMax = 11.5;   // slowest pull (z~0.76)
-// iPhone only: waves 8..9 get a HIGHER max damping (slower settle) than the
-// iPad's shared 11.5.
+// iPhone only: waves 8..9 get a HIGHER max damping (slower settle) and a
+// HIGHER min damping (less bounce) than the iPad's shared 10.6/11.5.
+static const CGFloat kIPhoneOuterWaveDampingMin = 11.0;
 static const CGFloat kIPhoneOuterWaveDampingMax = 13.5;
 // Waves 4..7 (mid-outer): share ONE damping range (identical bounce feel). Only
 // their STIFFNESS differs (4..5 slightly stiffer than 6..7).
@@ -159,10 +164,11 @@ static NSString * const kKeyDock  = @"wave26.dock";
         return maxD + (minD - maxD) * p;
     }
     if (wave >= 8) {
-        // Waves 8..9 (outermost ring): bounciest. iPhone uses a higher max
-        // damping than the iPad; the iPad keeps the shared kOuterWaveDampingMax.
+        // Waves 8..9 (outermost ring): bounciest. iPhone uses a higher min AND
+        // max damping than the iPad; the iPad keeps the shared 10.6/11.5.
+        CGFloat minD = self.isPad ? kOuterWaveDampingMin : kIPhoneOuterWaveDampingMin;
         CGFloat maxD = self.isPad ? kOuterWaveDampingMax : kIPhoneOuterWaveDampingMax;
-        return maxD + (kOuterWaveDampingMin - maxD) * p;
+        return maxD + (minD - maxD) * p;
     }
     // Waves 4..7: identical damping (only stiffness differs between 4..5 and 6..7).
     return kMidWaveDampingMax + (kMidWaveDampingMin - kMidWaveDampingMax) * p;
@@ -274,10 +280,15 @@ static NSString * const kKeyDock  = @"wave26.dock";
 
     CFTimeInterval layerNow = [layer convertTime:CACurrentMediaTime() fromLayer:nil];
 
+    // Map pull speed to p in [0,1] (same scale as the icons): p=0 (slowest) ->
+    // max damping (snappy); p=1 (fastest) -> min damping (bouncier).
+    CGFloat p = MIN(1.0, fabs(velocity) / kPullVelocityFull);
+    CGFloat dockDamping = kDockDampingMax + (kDockDampingMin - kDockDampingMax) * p;
+
     CASpringAnimation *pos = [CASpringAnimation animationWithKeyPath:@"position"];
     pos.fromValue = [NSValue valueWithCGPoint:start];
     pos.toValue   = [NSValue valueWithCGPoint:home];
-    pos.damping   = kSpringDamping;
+    pos.damping   = dockDamping;
     pos.stiffness = kSpringStiffness;
     pos.mass      = kSpringMass;
     pos.initialVelocity = kSpringVelocity;
