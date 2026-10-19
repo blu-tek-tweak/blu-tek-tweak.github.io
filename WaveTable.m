@@ -93,12 +93,12 @@ static const NSTimeInterval kIPhoneWaveInterval = 0.055;
 static const NSTimeInterval kIPadWaveInterval   = 0.050;  // 50ms between waves
 
 // iPhone "early" offsets (pull a wave band earlier to tighten a gap).
-// 0.015 -> 0.055: tighten wave 3 by 40ms (pull it 40ms earlier).
-static const NSTimeInterval kIPhoneWave3Early = 0.055;
+// 0.030 -> 0.040: reduce the 2->3 gap by 10ms (pull wave 3 10ms earlier).
+static const NSTimeInterval kIPhoneWave3Early = 0.040;
 static const NSTimeInterval kIPhoneWave4Early = 0.255;
 static const NSTimeInterval kIPhoneWave5Early = 0.025;
-// 0.010 -> 0.020: tighten the 5->6 gap slightly (45ms -> 35ms).
-static const NSTimeInterval kIPhoneWave6Early = 0.020;
+// 0.020 -> 0.040: reduce the 5->6 gap by 20ms more (35ms -> 15ms).
+static const NSTimeInterval kIPhoneWave6Early = 0.040;
 static const NSTimeInterval kIPhoneWave7Early = 0.025;
 // 0.105 -> 0.055: the 7->8 gap is (base - kIPhoneWave8Early) = 0.055 - 0.055
 // = 0.000, so wave 8 lands LATER (was 50ms before wave 7, now ~simultaneous)
