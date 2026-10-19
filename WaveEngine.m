@@ -25,8 +25,11 @@ static const CGFloat   kNoBounceStiffness = 300.0;  // fast take-off + quick set
 // frequency -> slower, floatier motion; higher damping (closer to critical) makes
 // the overshoot smaller -> a shallower give. Was stiffness 55 / damping 12-14.
 static const CGFloat kOuterWaveStiffness  = 38.0;   // softer -> slower bounce
-static const CGFloat kOuterWaveDampingMin = 10.6;   // fastest pull (z~0.70)
+static const CGFloat kOuterWaveDampingMin = 6.6;   // fastest pull (was 10.6; reduced a further 4)
 static const CGFloat kOuterWaveDampingMax = 11.5;   // slowest pull (z~0.76)
+// iPhone only: waves 8..9 get a HIGHER max damping (slower settle) than the
+// iPad's shared 11.5.
+static const CGFloat kIPhoneOuterWaveDampingMax = 13.5;
 // Waves 4..7 (mid-outer): share ONE damping range (identical bounce feel). Only
 // their STIFFNESS differs (4..5 slightly stiffer than 6..7).
 static const CGFloat kMidWaveStiffness    = 112.0;  // 4..5: bumped from 100 -> a touch faster
@@ -38,10 +41,14 @@ static const CGFloat kMidWaveDampingMax   = 22.0;   // 4..7 slowest pull
 // ~0.19 of the range.
 static const CGFloat kPullVelocityFull  = 6500.0;
 
-// Waves 1..3 get the SAME variable damping but MUCH narrower (centered on the
-// base 45, +/-2) so the effect is barely noticeable on the center.
-static const CGFloat kFirstWaveDampingMin = 34.0;   // fastest pull
-static const CGFloat kFirstWaveDampingMax = 39.0;   // slowest pull
+// Waves 1..3 get the SAME variable damping but MUCH narrower (33..40) so the
+// effect is barely noticeable on the center.
+static const CGFloat kFirstWaveDampingMin = 33.0;   // fastest pull
+static const CGFloat kFirstWaveDampingMax = 40.0;   // slowest pull
+// iPad only: waves 1..3 keep the ORIGINAL (pre-iPhone-tuning) range 34..39 so
+// the iPhone's 32..39 tightening does not bleed into the iPad.
+static const CGFloat kIPadFirstWaveDampingMin = 34.0;
+static const CGFloat kIPadFirstWaveDampingMax = 39.0;
 
 // Early waves (1..3) get a forward initial velocity so they launch quickly
 // (start fast); the high damping then slows them into a soft stop (ease-out).
@@ -145,12 +152,17 @@ static NSString * const kKeyDock  = @"wave26.dock";
     CGFloat p = MIN(1.0, speed / kPullVelocityFull);
 
     if (wave >= 1 && wave <= kNoBounceWaves) {
-        // Waves 1..3: subtle variation around the base 45.
-        return kFirstWaveDampingMax + (kFirstWaveDampingMin - kFirstWaveDampingMax) * p;
+        // Waves 1..3: subtle variation. iPhone uses the tightened 32..39; the
+        // iPad keeps the original 34..39 so the iPhone tuning stays iPhone-only.
+        CGFloat minD = self.isPad ? kIPadFirstWaveDampingMin : kFirstWaveDampingMin;
+        CGFloat maxD = self.isPad ? kIPadFirstWaveDampingMax : kFirstWaveDampingMax;
+        return maxD + (minD - maxD) * p;
     }
     if (wave >= 8) {
-        // Waves 8..9 (outermost ring): bounciest.
-        return kOuterWaveDampingMax + (kOuterWaveDampingMin - kOuterWaveDampingMax) * p;
+        // Waves 8..9 (outermost ring): bounciest. iPhone uses a higher max
+        // damping than the iPad; the iPad keeps the shared kOuterWaveDampingMax.
+        CGFloat maxD = self.isPad ? kOuterWaveDampingMax : kIPhoneOuterWaveDampingMax;
+        return maxD + (kOuterWaveDampingMin - maxD) * p;
     }
     // Waves 4..7: identical damping (only stiffness differs between 4..5 and 6..7).
     return kMidWaveDampingMax + (kMidWaveDampingMin - kMidWaveDampingMax) * p;
