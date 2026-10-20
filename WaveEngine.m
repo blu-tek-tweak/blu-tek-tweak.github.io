@@ -219,10 +219,21 @@ static NSString * const kKeyDock  = @"wave26.dock";
     // layer.position is in its superlayer's coordinates, not screen coordinates.
     CGPoint cameraCenter = [view.superview convertPoint:screenCenter
                                    fromCoordinateSpace:screen.coordinateSpace];
-    CGPoint start = CGPointMake(cameraCenter.x + (home.x - cameraCenter.x) * kCameraStartZoom,
-                                cameraCenter.y + (home.y - cameraCenter.y) * kCameraStartZoom);
-    CATransform3D startTransform = CATransform3DScale(homeTransform,
-                                                    kCameraStartZoom, kCameraStartZoom, 1.0);
+    CGPoint start;
+    CATransform3D startTransform;
+    if (self.startFromOffscreen) {
+        // Icons were moved off-screen (below the bottom edge) by the lock-screen
+        // hide; fly them in from there. The transform stays at home scale so only
+        // the position animates (a straight fly-in from below).
+        start = CGPointMake(cameraCenter.x,
+                            cameraCenter.y + (home.y - cameraCenter.y) + screenBounds.size.height);
+        startTransform = homeTransform;
+    } else {
+        start = CGPointMake(cameraCenter.x + (home.x - cameraCenter.x) * kCameraStartZoom,
+                             cameraCenter.y + (home.y - cameraCenter.y) * kCameraStartZoom);
+        startTransform = CATransform3DScale(homeTransform,
+                                            kCameraStartZoom, kCameraStartZoom, 1.0);
+    }
 
     CFTimeInterval layerNow = [layer convertTime:CACurrentMediaTime() fromLayer:nil];
     CFTimeInterval beginAt  = layerNow + delay;

@@ -74,6 +74,7 @@ static BOOL g_panFired = NO;   // set when the swipe-up gesture fires this unloc
 static BOOL g_sheetMovedFired = NO;  // set when we've already fired via sheet-move
 static BOOL g_rootFired = NO;   // set once the root-folder path fired this unlock
 static BOOL g_sheetSeenOnScreen = NO;  // cover sheet observed fully on-screen this lock cycle
+static BOOL g_iconsHidden = NO;      // we've moved the home icons off-screen this lock cycle
 
 // Cached class lookups (resolved once at init).
 static Class g_panClass = nil;
@@ -392,6 +393,41 @@ static void wave26_fire(void);
 
 // Reliable "we arrived home" trigger. The root-folder (home screen) presentation
 // is driven by SpringBoard for BOTH swipe-up and home-button unlocks, so it is
+// Move every on-screen home icon off-screen (below the bottom edge) so the
+// "teleport" is not visible when the lock screen / notification center is
+// detected. Called when we observe a locked/cover-sheet state. The icons are
+// restored to their home positions by the next wave26_fire (the unlock wave),
+// so this is a one-way hide that the unlock wave reverses.
+static void wave26_hideIconsOffscreen(void) {
+    if (!g_iconClass) return;
+    if (g_iconsHidden) return;
+    NSArray *icons = collectIconViews();
+    if (icons.count == 0) return;
+    CGRect screen = [UIScreen mainScreen].bounds;
+    // Target a point well below the visible area so the icons are fully off-screen.
+    CGPoint offscreen = CGPointMake(screen.size.width / 2.0,
+                                    screen.size.height + 50.0);
+    for (UIView *v in icons) {
+        CALayer *layer = v.layer;
+        if (!layer || !v.window) continue;
+        wave26_stripAnimations(v);
+        // Animate position to off-screen; the model layer then holds there.
+        // Animate the PRESENTATION to off-screen only; leave the model
+        // position at home. This way the next wave (which reads
+        // layer.position as the home anchor) still animates from the true
+        // home, and the hide animation is simply replaced when the wave plays.
+        CABasicAnimation *pos = [CABasicAnimation animationWithKeyPath:@"position"];
+        pos.fromValue = [NSValue valueWithCGPoint:layer.position];
+        pos.toValue   = [NSValue valueWithCGPoint:offscreen];
+        pos.duration  = 0.25;
+        pos.fillMode  = kCAFillModeForwards;
+        pos.removedOnCompletion = NO;
+        [layer addAnimation:pos forKey:@"wave26.hide"];
+    }
+        wave26_log([NSString stringWithFormat:@"hide: moved %lu icons off-screen", (unsigned long)icons.count]);
+    g_iconsHidden = YES;
+}
+
 // a trustworthy unlock signal that does not depend on the pan gesture (which a
 // home-button press never produces) nor on the lockstate distributed
 // notification (whose userInfo/timing is not reliable for this). By the time the
@@ -487,6 +523,9 @@ static void wave26_fire(void) {
     // table (iPhone 4x6 vs iPad 5x6 horizontal/vertical) and grid center.
     g_engine.isPad = g_isPad;
     g_engine.orientation = wave26_currentOrientation();
+    // If we moved the icons off-screen (lock screen / NC detected), fly them in
+    // from off-screen instead of the zoomed-home start.
+    g_engine.startFromOffscreen = g_iconsHidden;
 
     // Play our wave.
     [g_engine playWithPullVelocity:vel];
@@ -748,12 +787,17 @@ static void wave26_watchTick(void) {
         g_rootFired = NO;
         g_sheetMovedFired = NO;
         g_sheetSeenOnScreen = NO;
+        // Lock screen / notification center detected (home icons gone / cover
+        // sheet present): move the icons off-screen so the unlock "teleport" is
+        // not visible. The next unlock wave restores them to home.
+        wave26_hideIconsOffscreen();
         return;
     }
 
     // home == YES here.
     g_awaySince = 0;
     g_sheetSeenOnScreen = NO;
+    g_iconsHidden = NO;  // icons are back on-screen; allow hiding again next lock
     if (!g_armed) {
         // Never saw an "away" state (e.g. fresh boot already on home); just track.
         g_homeVisible = YES;

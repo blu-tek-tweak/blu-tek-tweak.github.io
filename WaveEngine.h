@@ -10,6 +10,11 @@ NS_ASSUME_NONNULL_BEGIN
 // and grid center. Defaults to iPhone / vertical.
 @property (nonatomic, assign) BOOL isPad;
 @property (nonatomic, assign) WaveOrientation orientation;
+// When YES, the position animation starts from an off-screen point (below the
+// bottom edge) instead of the zoomed-home start. Used when the icons were moved
+// off-screen by the lock-screen hide so the unlock wave flies them in from
+// off-screen. Set before playWithPullVelocity:.
+@property (nonatomic, assign) BOOL startFromOffscreen;
 
 - (void)registerIcon:(UIView *)view col:(NSInteger)col row:(NSInteger)row;
 - (void)clearIcons;
