@@ -6,4 +6,3 @@ Description: iOS 26-style center-out unlock wave for the iOS 16 lock screen
 Author: blu_tek
 Maintainer: blu_tek
 Section: Tweaks
-Depends: mobilebase (>= 16.0), mobilebase (< 17.0)

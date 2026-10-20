@@ -29,13 +29,26 @@ static const CGFloat kDefaultPullVelocity = 1250.0;
 // iPad 5x6); the orientation selects the iPad's horizontal vs vertical map.
 static BOOL g_isPad = NO;
 
+// iOS 16+ only. The isPad/orientation model (and the iOS-16 SpringBoard hooks)
+// assume iOS 16 internals; on iOS 15 we fall back to the single-idiom
+// iPhone/vertical path (the build-9 behavior) so the tweak is a safe no-op-ish
+// wave instead of crashing SpringBoard. iOS 16 runs the current code untouched.
+static BOOL wave26_isIOS16OrLater(void) {
+    return [[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){
+        .majorVersion = 16, .minorVersion = 0, .patchVersion = 0
+    }];
+}
+
 static BOOL wave26_isPad(void) {
+    if (!wave26_isIOS16OrLater()) return NO;
     return [[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad;
 }
 
 // Current orientation as a WaveOrientation. Portrait -> vertical; landscape ->
 // horizontal. (Used only for the iPad; the iPhone map is orientation-agnostic.)
+// On iOS 15 we always report vertical (the single-idiom fallback).
 static WaveOrientation wave26_currentOrientation(void) {
+    if (!wave26_isIOS16OrLater()) return WaveOrientationVertical;
     UIDeviceOrientation o = [UIDevice currentDevice].orientation;
     switch (o) {
         case UIDeviceOrientationLandscapeLeft:
