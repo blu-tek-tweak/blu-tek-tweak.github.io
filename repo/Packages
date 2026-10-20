@@ -1,18 +1,18 @@
 Package: com.blu-tek.26wave
-Version: 1.0.0-33+debug
+Version: 1.0.0-34+debug
 Architecture: iphoneos-arm64
 Maintainer: blu_tek
-Filename: pools/letterc/com.blu-tek.26wave_1.0.0-33+debug_iphoneos-arm64.deb
+Filename: pools/letterc/com.blu-tek.26wave_1.0.0-34+debug_iphoneos-arm64.deb
 Section: Tweaks
 Priority: optional
 Description: iOS 26-style center-out unlock wave for the iOS 16 lock screen
 Author: blu_tek
 Installed-Size: 152
-Size: 26028
-MD5Sum: 8013dc2c50d684786d16a7e4f591c531
-SHA1: 8db59e2f1e12cf6b522b099edc4ec4659587c8de
-SHA256: fa81a432e8a9a79c5759e97b03fc2551677ae64473832ad59040b5f2d6059aa8
-SHA512: 0426751f3ca4686200552dc5d92e215626b0980e6cbf7d7d871faf98b79d7ce4b225cb1a393436e7b5c3d4ce828d76fed574f224bd8605e7c1152c5cd2a6ab78
+Size: 26068
+MD5Sum: a793eb2adf695225aea9ac2d7886d762
+SHA1: 3e467a18a6f546f13189248730073a0e656946cb
+SHA256: 4efb50837fb2f1aff30509f8df09913fa246bbfc92a7e9d7f0260360f769ded5
+SHA512: 8f81377fc0c3cd219e4f0c9f8c399dc0b047cba0f9df2ae771191dde9c68331ca0ffaa608e928510ffff89d3333b5975a62225bc8bf3fb8990867ec35e1c5dec
 
 Package: com.blu-tek.27status
 Name: 27Status
