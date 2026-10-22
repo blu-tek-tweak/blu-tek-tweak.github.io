@@ -99,11 +99,11 @@ static const NSTimeInterval kIPhoneWave4Early = 0.255;
 static const NSTimeInterval kIPhoneWave5Early = 0.025;
 // 0.020 -> 0.040: reduce the 5->6 gap by 20ms more (35ms -> 15ms).
 static const NSTimeInterval kIPhoneWave6Early = 0.040;
-// 0.025 -> 0.125: reduce the 7->8 delay by 100ms (pull wave 8 100ms earlier).
+static const NSTimeInterval kIPhoneWave7Early = 0.025;
+// 0.105 -> 0.205: reduce the 7->8 delay by 100ms (pull wave 8 100ms earlier).
 // The 7->8 gap is (base - kIPhoneWave8Early + kIPhoneWave7Early) =
-// 0.055 - 0.105 + 0.125 = +0.075, so wave 8 now lands 75ms AFTER wave 7.
-static const NSTimeInterval kIPhoneWave7Early = 0.125;
-static const NSTimeInterval kIPhoneWave8Early = 0.105;
+// 0.055 - 0.205 + 0.025 = -0.125, so wave 8 now lands 125ms BEFORE wave 7.
+static const NSTimeInterval kIPhoneWave8Early = 0.205;
 
 // iPad "early" offsets. With the 50ms base interval and a pure (w-1)*50ms
 // schedule, each wave w fires at exactly (w-1)*50ms — i.e. wave 1 at 0ms,
