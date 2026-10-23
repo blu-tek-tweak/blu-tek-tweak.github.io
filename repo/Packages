@@ -14,6 +14,22 @@ SHA1: 4e7cb4fc2088bc0a3441841599552321a7ad6fac
 SHA256: d1f448c8d7892f812b388048f618e479d1da645c7726e6c3975cead8012e8615
 SHA512: 3f1a4567ae59f2917df81ca17c6c5a8e1cb564c03d8a1a2cb0994a7f47b850f9e3a9a4acc4dbaef068bf219dddea4c8ef20b7bca40b7a72e057b8e2f60a6ae5f
 
+Package: com.blu-tek.26wave
+Version: 1.0.0-84+debug
+Architecture: iphoneos-arm64
+Maintainer: blu_tek
+Filename: pools/letterc/com.blu-tek.26wave_1.0.0-84+debug_iphoneos-arm64.deb
+Section: Tweaks
+Priority: optional
+Description: iOS 26-style center-out unlock wave for the iOS 16 lock screen
+Author: blu_tek
+Installed-Size: 239
+Size: 35402
+MD5Sum: d4ad63a0556173af043da33894b6912d
+SHA1: 040eee7282f957647156db2e931bea9b8b61a0a1
+SHA256: 5b4878402d61a8841e20835ac2202b3d57fccf95d7e3195faa827820506e4125
+SHA512: 217acfb35cbaa415428b131df9a74401b96583a4fd03d2359c61988ed1899a0a40a1269fecd9cecfa3d04d96e6e185712fe8fce810b009f78e0443eef1f3fdae
+
 Package: com.blu-tek.27status
 Name: 27Status
 Description: iOS 27-style battery icon - no border, smaller text, rounder corners
