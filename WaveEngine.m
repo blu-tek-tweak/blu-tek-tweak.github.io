@@ -281,9 +281,9 @@ static double Wave26PrefDouble(NSString *key, double defaultValue) {
         0.0197,   // wave 3
         -0.1257,  // wave 4
         0.071,    // wave 5
-        0.0023,   // wave 6
+        -0.0537,  // wave 6
         0.0703,   // wave 7
-        -0.0997,  // wave 8
+        -0.1263,  // wave 8
         0.071,    // wave 9
     };
     // Build a map of wave -> relative delay (only for waves that are present).
@@ -381,7 +381,7 @@ static double Wave26PrefDouble(NSString *key, double defaultValue) {
         NSString *prefix;
         double defV;
         if (wave >= 1 && wave <= 3)      { prefix = @"w13"; defV = kFirstWaveStartVelocity; }
-        else if (wave >= 4 && wave <= 7) { prefix = @"w47"; defV = 0.0; }
+        else if (wave >= 4 && wave <= 7) { prefix = @"w47"; defV = 0.95; }
         else                             { prefix = @"w89"; defV = kIPhoneOuterStartVelocity; }
         return Wave26PrefDouble([NSString stringWithFormat:@"%@_velocity", prefix], defV);
     }
