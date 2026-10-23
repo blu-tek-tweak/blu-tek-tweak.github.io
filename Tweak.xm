@@ -260,20 +260,6 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
     if (!pageView) return;
 
     const NSInteger MAXI = 64;
-    CGFloat cxArr[MAXI], cyArr[MAXI];
-    UIView *iconArr[MAXI];
-    NSInteger n = 0;
-    CGFloat minX = INFINITY, minY = INFINITY, maxX = -INFINITY, maxY = -INFINITY;
-    for (UIView *v in filtered) {
-        if (n >= MAXI) break;
-        CGPoint c = [v convertPoint:v.center toView:pageView];
-        cxArr[n] = c.x; cyArr[n] = c.y;
-        iconArr[n] = v;
-        minX = MIN(minX, c.x); maxX = MAX(maxX, c.x);
-        minY = MIN(minY, c.y); maxY = MAX(maxY, c.y);
-        n++;
-    }
-    if (n < 4) return;
 
     // Idiom + orientation-aware grid dimensions (iPhone 4x6; iPad vertical 5x6,
     // horizontal 6x5).
@@ -281,55 +267,154 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
     NSInteger gridCols = [WaveTable colsForIsPad:g_isPad orientation:orient];
     NSInteger gridRows = [WaveTable rowsForIsPad:g_isPad orientation:orient];
 
-    // Detect the ACTUAL number of rows by clustering y-coordinates, then map
-    // the present rows to the TOP of the grid (rows 0..rowCount-1). A page with
-    // 5 rows maps to rows 0-4 (the wave table's row 5 is simply unused), which
-    // is the natural look for a 5-row page — no wedged/missing waves.
-    // Sort the y-values to find distinct row bands.
-    CGFloat ys[MAXI];
-    for (NSInteger i = 0; i < n; i++) ys[i] = cyArr[i];
-    for (NSInteger i = 1; i < n; i++) {
-        CGFloat key = ys[i]; NSInteger j = i - 1;
-        while (j >= 0 && ys[j] > key) { ys[j + 1] = ys[j]; j--; }
-        ys[j + 1] = key;
+    // Collect every view's frame (in the page view's space) and its center.
+    CGRect frames[MAXI];
+    UIView *views[MAXI];
+    CGFloat cxArr[MAXI], cyArr[MAXI];
+    NSInteger n = 0;
+    for (UIView *v in filtered) {
+        if (n >= MAXI) break;
+        frames[n] = [v convertRect:v.bounds toView:pageView];
+        views[n] = v;
+        cxArr[n] = CGRectGetMidX(frames[n]);
+        cyArr[n] = CGRectGetMidY(frames[n]);
+        n++;
     }
-    CGFloat spanY = MAX(1.0, maxY - minY);
-    CGFloat gapThreshold = (spanY / gridRows) * 0.5;  // a half-row gap starts a new band
-    NSInteger rowCount = 1;
-    for (NSInteger i = 1; i < n; i++) {
-        if (ys[i] - ys[i - 1] > gapThreshold) rowCount++;
-    }
-    if (rowCount < 1) rowCount = 1;
-    if (rowCount > gridRows) rowCount = gridRows;
+    if (n < 4) return;
 
-    // Columns: same clustering.
-    CGFloat xs[MAXI];
-    for (NSInteger i = 0; i < n; i++) xs[i] = cxArr[i];
-    for (NSInteger i = 1; i < n; i++) {
-        CGFloat key = xs[i]; NSInteger j = i - 1;
-        while (j >= 0 && xs[j] > key) { xs[j + 1] = xs[j]; j--; }
-        xs[j + 1] = key;
-    }
-    CGFloat spanX = MAX(1.0, maxX - minX);
-    CGFloat colGapThreshold = (spanX / gridCols) * 0.5;
-    NSInteger colCount = 1;
-    for (NSInteger i = 1; i < n; i++) {
-        if (xs[i] - xs[i - 1] > colGapThreshold) colCount++;
-    }
-    if (colCount < 1) colCount = 1;
-    if (colCount > gridCols) colCount = gridCols;
-
-    // Divide the bounding box by the ACTUAL counts and bin. The present rows
-    // fill rows 0..rowCount-1 (top-anchored), so a 5-row page uses rows 0-4.
-    CGFloat cellW = spanX / colCount;
-    CGFloat cellH = spanY / rowCount;
-
+    // Separate WIDGETS (multi-cell) from standard ICONS (single-cell). A widget
+    // is detected RELATIVELY (adapts to any screen size): it is at least ~1.5x
+    // the smallest view's short side. Standard icons sit at ~1.0x.
+    CGFloat refSize = INFINITY;
     for (NSInteger i = 0; i < n; i++) {
-        NSInteger c = (NSInteger)((cxArr[i] - minX) / cellW);
-        NSInteger r = (NSInteger)((cyArr[i] - minY) / cellH);
+        refSize = MIN(refSize, MAX(1.0, MIN(frames[i].size.width, frames[i].size.height)));
+    }
+    CGFloat widgetThreshold = refSize * 1.5;
+
+    // Use STANDARD ICONS to detect the grid. Their centers sit at clean, evenly
+    // spaced grid positions (measured: x pitch ~87, y pitch ~95 on this device),
+    // giving correct column/row bands and pitch. A widget's center sits in the
+    // MIDDLE of the cells it spans, so including it would skew the detection.
+    // (If there are no standard icons, fall back to all views.)
+    // Standard icons: single-cell (not a widget) AND not in the bottom dock
+    // region (defensive — the dock icons sit well below the grid and would
+    // otherwise create a spurious 5th row band and skew the detected pitch).
+    CGFloat dockTop = screen.size.height * 0.85;
+    NSInteger stdIdx[MAXI]; NSInteger stdN = 0;
+    for (NSInteger i = 0; i < n; i++) {
+        if (MAX(frames[i].size.width, frames[i].size.height) > widgetThreshold) continue;  // widget
+        if (cyArr[i] > dockTop) continue;  // dock region
+        stdIdx[stdN++] = i;
+    }
+    if (stdN == 0) { for (NSInteger i = 0; i < n; i++) stdIdx[stdN++] = i; }
+    if (stdN < 2) return;
+
+    // --- Detect the grid from the standard icons' centers. ---
+    // Column bands: cluster the x-centers, take each band's mean. The pitch is
+    // the mean distance between adjacent means; the origin is the leftmost mean
+    // minus half a pitch (the left edge of the leftmost column).
+    CGFloat scx[MAXI], scy[MAXI];
+    for (NSInteger i = 0; i < stdN; i++) { scx[i] = cxArr[stdIdx[i]]; scy[i] = cyArr[stdIdx[i]]; }
+    for (NSInteger i = 1; i < stdN; i++) {
+        CGFloat key = scx[i]; NSInteger j = i - 1;
+        while (j >= 0 && scx[j] > key) { scx[j + 1] = scx[j]; j--; }
+        scx[j + 1] = key;
+    }
+    CGFloat spanX = MAX(1.0, scx[stdN - 1] - scx[0]);
+    CGFloat colGap = (spanX / gridCols) * 0.5;
+    CGFloat colBandSum[MAXI]; NSInteger colBandCount[MAXI]; NSInteger colBandN = 0;
+    colBandSum[0] = scx[0]; colBandCount[0] = 1;
+    for (NSInteger i = 1; i < stdN; i++) {
+        if (scx[i] - scx[i - 1] > colGap) { colBandN++; colBandSum[colBandN] = scx[i]; colBandCount[colBandN] = 1; }
+        else { colBandSum[colBandN] += scx[i]; colBandCount[colBandN]++; }
+    }
+    CGFloat colMean[MAXI];
+    for (NSInteger i = 0; i <= colBandN; i++) colMean[i] = colBandSum[i] / colBandCount[i];
+    NSInteger colCount = colBandN + 1;
+    if (colCount > gridCols) colCount = gridCols;
+    CGFloat colPitch = 0;
+    for (NSInteger i = 1; i < colCount; i++) colPitch += (colMean[i] - colMean[i - 1]);
+    if (colCount > 1) colPitch /= (colCount - 1);
+    if (colPitch < 1) colPitch = spanX / MAX(1, colCount);
+    // Anchor the grid's left edge to the SCREEN (centered horizontally). The
+    // grid spans (gridCols * colPitch) points, centered on the screen, so the
+    // left edge of col 0 is at (screenWidth - gridCols * colPitch) / 2. This is
+    // robust on sparse/irregular layouts where the leftmost standard icon isn't
+    // in col 0 (the center-based origin would misplace it).
+    CGFloat gridLeft = (screen.size.width - gridCols * colPitch) * 0.5;
+    if (gridLeft < 0) gridLeft = 0;
+
+    // Row bands: same, on the y-centers.
+    for (NSInteger i = 1; i < stdN; i++) {
+        CGFloat key = scy[i]; NSInteger j = i - 1;
+        while (j >= 0 && scy[j] > key) { scy[j + 1] = scy[j]; j--; }
+        scy[j + 1] = key;
+    }
+    CGFloat spanY = MAX(1.0, scy[stdN - 1] - scy[0]);
+    CGFloat rowGap = (spanY / gridRows) * 0.5;
+    CGFloat rowBandSum[MAXI]; NSInteger rowBandCount[MAXI]; NSInteger rowBandN = 0;
+    rowBandSum[0] = scy[0]; rowBandCount[0] = 1;
+    for (NSInteger i = 1; i < stdN; i++) {
+        if (scy[i] - scy[i - 1] > rowGap) { rowBandN++; rowBandSum[rowBandN] = scy[i]; rowBandCount[rowBandN] = 1; }
+        else { rowBandSum[rowBandN] += scy[i]; rowBandCount[rowBandN]++; }
+    }
+    CGFloat rowMean[MAXI];
+    for (NSInteger i = 0; i <= rowBandN; i++) rowMean[i] = rowBandSum[i] / rowBandCount[i];
+    NSInteger rowCount = rowBandN + 1;
+    if (rowCount > gridRows) rowCount = gridRows;
+    CGFloat rowPitch = 0;
+    for (NSInteger i = 1; i < rowCount; i++) rowPitch += (rowMean[i] - rowMean[i - 1]);
+    if (rowCount > 1) rowPitch /= (rowCount - 1);
+    if (rowPitch < 1) rowPitch = spanY / MAX(1, rowCount);
+    // Anchor the grid's top edge to the topmost view's TOP EDGE (across ALL
+    // views, including widgets). The grid's top row starts at the topmost
+    // view's top edge, which aligns with the grid's top boundary. This is
+    // robust on irregular layouts (widgets in the top OR bottom).
+    CGFloat minTopEdge = INFINITY;
+    for (NSInteger i = 0; i < n; i++) minTopEdge = MIN(minTopEdge, CGRectGetMinY(frames[i]));
+    CGFloat gridTop = minTopEdge;
+
+    // Grid center in cell units (from the wave table, e.g. iPhone 4x6 -> (1.5, 2.5)).
+    CGPoint gridCenter = [WaveTable centerForIsPad:g_isPad orientation:orient];
+
+    // --- Place EVERY view. Standard icons bin by their CENTER (they sit at clean
+    // grid centers). WIDGETS bin by their TOP-LEFT corner to get the cell they
+    // start in, then are assigned to the cell WITHIN their span that is closest
+    // to the grid center (a 2x2 widget -> the cell nearest the center, which
+    // gives it an earlier wave than its geometric center would). ---
+    for (NSInteger i = 0; i < n; i++) {
+        BOOL isWidget = (MAX(frames[i].size.width, frames[i].size.height) > widgetThreshold);
+        NSInteger c, r;
+        if (!isWidget) {
+            // Standard icon: bin by center.
+            c = (colPitch > 0) ? (NSInteger)floor((cxArr[i] - gridLeft) / colPitch) : 0;
+            r = (rowPitch > 0) ? (NSInteger)floor((cyArr[i] - gridTop) / rowPitch) : 0;
+        } else {
+            // Widget: bin by top-left corner to get the starting cell, then pick
+            // the cell within its span closest to the grid center.
+            NSInteger topC = (colPitch > 0) ? (NSInteger)floor((CGRectGetMinX(frames[i]) - gridLeft) / colPitch) : 0;
+            NSInteger topR = (rowPitch > 0) ? (NSInteger)floor((CGRectGetMinY(frames[i]) - gridTop) / rowPitch) : 0;
+            if (topC < 0) topC = 0; if (topC >= colCount) topC = colCount - 1;
+            if (topR < 0) topR = 0; if (topR >= gridRows) topR = gridRows - 1;
+            NSInteger spanC = (colPitch > 0) ? (NSInteger)lround(frames[i].size.width / colPitch) : 1;
+            NSInteger spanR = (rowPitch > 0) ? (NSInteger)lround(frames[i].size.height / rowPitch) : 1;
+            if (spanC < 1) spanC = 1; if (spanR < 1) spanR = 1;
+            // Search the span for the cell closest to the grid center.
+            c = topC; r = topR;
+            CGFloat bestDist = INFINITY;
+            for (NSInteger dc = 0; dc < spanC; dc++) {
+                for (NSInteger dr = 0; dr < spanR; dr++) {
+                    NSInteger cc = topC + dc, rr = topR + dr;
+                    if (cc < 0 || cc >= colCount || rr < 0 || rr >= gridRows) continue;
+                    CGFloat dx = cc - gridCenter.x, dy = rr - gridCenter.y;
+                    CGFloat dist = dx * dx + dy * dy;
+                    if (dist < bestDist) { bestDist = dist; c = cc; r = rr; }
+                }
+            }
+        }
         if (c < 0) c = 0; if (c >= colCount) c = colCount - 1;
-        if (r < 0) r = 0; if (r >= rowCount) r = rowCount - 1;
-        [g_engine registerIcon:iconArr[i] col:c row:r];
+        if (r < 0) r = 0; if (r >= gridRows) r = gridRows - 1;
+        [g_engine registerIcon:views[i] col:c row:r];
     }
 }
 
