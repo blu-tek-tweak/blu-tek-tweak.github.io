@@ -93,17 +93,20 @@ static const NSTimeInterval kIPhoneWaveInterval = 0.055;
 static const NSTimeInterval kIPadWaveInterval   = 0.050;  // 50ms between waves
 
 // iPhone "early" offsets (pull a wave band earlier to tighten a gap).
+// 0 -> 0.025: reduce the 1->2 delay by 25ms (55ms -> 30ms; pull wave 2 earlier).
+static const NSTimeInterval kIPhoneWave2Early = 0.025;
 // 0.030 -> 0.040: reduce the 2->3 gap by 10ms (pull wave 3 10ms earlier).
 static const NSTimeInterval kIPhoneWave3Early = 0.040;
-static const NSTimeInterval kIPhoneWave4Early = 0.255;
+static const NSTimeInterval kIPhoneWave4Early = 0.025;  // 4-7: uniform 25ms early -> clean 55ms ripple
 static const NSTimeInterval kIPhoneWave5Early = 0.025;
-// 0.020 -> 0.040: reduce the 5->6 gap by 20ms more (35ms -> 15ms).
-static const NSTimeInterval kIPhoneWave6Early = 0.040;
+static const NSTimeInterval kIPhoneWave6Early = 0.025;
 static const NSTimeInterval kIPhoneWave7Early = 0.025;
 // 0.055 -> 0.105: pull wave 8 50ms earlier (reduce its delay by 50ms). The
 // 7->8 gap is (base - kIPhoneWave8Early + kIPhoneWave7Early) =
 // 0.055 - 0.105 + 0.025 = -0.025, so wave 8 lands 25ms BEFORE wave 7.
 static const NSTimeInterval kIPhoneWave8Early = 0.105;
+// Pull wave 9 55ms earlier (increase its early start delay by 55ms).
+static const NSTimeInterval kIPhoneWave9Early = 0.055;
 
 // iPad "early" offsets. With the 50ms base interval and a pure (w-1)*50ms
 // schedule, each wave w fires at exactly (w-1)*50ms — i.e. wave 1 at 0ms,
@@ -206,12 +209,14 @@ static NSTimeInterval waveIntervalForIsPad(BOOL isPad) {
         if (w >= 9) d -= kIPadWave9Early;
         if (w >= 10) d -= kIPadWave10Early;
     } else {
+        if (w >= 2) d -= kIPhoneWave2Early;
         if (w >= 3) d -= kIPhoneWave3Early;
         if (w >= 4) d -= kIPhoneWave4Early;
         if (w >= 5) d -= kIPhoneWave5Early;
         if (w >= 6) d -= kIPhoneWave6Early;
         if (w >= 7) d -= kIPhoneWave7Early;
         if (w >= 8) d -= kIPhoneWave8Early;
+        if (w >= 9) d -= kIPhoneWave9Early;
     }
     return d;
 }
