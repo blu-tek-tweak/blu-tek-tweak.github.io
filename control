@@ -1,8 +1,8 @@
-Package: com.blu-tek.26wave
-Name: 26Unlock
+Package: com.blu-tek.26passcode
+Name: 26Passcode
 Version: 1.0.0
 Architecture: iphoneos-arm64
-Description: iOS 26-style center-out unlock wave for the iOS 16 lock screen
+Description: Center-out zoom+bounce fly-in for the iOS 16 passcode pad
 Author: blu_tek
 Maintainer: blu_tek
 Section: Tweaks

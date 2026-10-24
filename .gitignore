@@ -1,6 +1,3 @@
-sources/
-repo/pools/letterc/com.blu-tek.27status_1.0.57_iphoneos-arm64.deb
-repo/pools/letterc/com.blu-tek.27status_1.0.58_iphoneos-arm64.deb
-repo/pools/letterc/com.blu-tek.27status_1.0.60_iphoneos-arm64.deb
-repo/pools/letterc/com.blu-tek.27status_1.0.61_iphoneos-arm64.deb
-repo/pools/letterc/com.blu-tek.27status_1.0.62_iphoneos-arm64.deb
+.theos
+obj
+packages
