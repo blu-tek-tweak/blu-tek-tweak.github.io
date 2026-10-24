@@ -1,5 +1,6 @@
 #import "WaveEngine.h"
 #import "WaveTable.h"
+#import <objc/runtime.h>
 
 #pragma mark - Tuning
 
@@ -107,11 +108,19 @@ static NSString * const kKeyScale = @"passcode.scale";
     CATransform3D homeTransform = layer.transform;
 
     // The pad's center in the layer's superlayer coordinate space.
-    UIScreen *screen = view.window.screen;
-    CGRect screenBounds = screen.coordinateSpace.bounds;
-    CGPoint screenCenter = CGPointMake(CGRectGetMidX(screenBounds), CGRectGetMidY(screenBounds));
-    CGPoint cameraCenter = [view.superview convertPoint:screenCenter
-                                    fromCoordinateSpace:screen.coordinateSpace];
+    // Walk up to find the passcode pad (SBUIPasscodeLockViewSimpleFixedDigitKeypad)
+    // and use its center as the zoom origin.
+    UIView *pad = view;
+    while (pad) {
+        NSString *cls = [NSString stringWithUTF8String:class_getName(object_getClass((id)pad))];
+        if ([cls isEqualToString:@"SBUIPasscodeLockViewSimpleFixedDigitKeypad"]) {
+            break;
+        }
+        pad = pad.superview;
+    }
+    if (!pad) pad = view.window;
+    CGRect padBounds = [pad convertRect:pad.bounds toView:view.superview];
+    CGPoint cameraCenter = CGPointMake(CGRectGetMidX(padBounds), CGRectGetMidY(padBounds));
 
     // Zoom-in start: the same magnification of the screen center for every
     // button, so the wave is a uniform "zoom out from the center".
