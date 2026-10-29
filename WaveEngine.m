@@ -272,8 +272,16 @@ static double Wave26PrefDouble(NSString *key, double defaultValue) {
         return;
     }
 
-    // iPhone: cumulative (relative) delays. Each wave's value is the delay
-    // AFTER the previous wave; we accumulate a running total.
+    // iPhone: relative delays. Each wave's value (from prefs, or the default
+    // below when the pref is absent) is the delay AFTER the previous wave. A
+    // wave's landing time is the sum of waves 1..w — accumulated over ALL waves
+    // 1..w, NOT just the waves present on this page. That keeps the prefs
+    // reading as relative gaps (a slider still means "the gap after wave N-1")
+    // while making each wave's timing independent of which waves are present:
+    // a page missing the last row (wave 9 absent) no longer shifts the earlier
+    // waves, so wave 6 lands at the same time it does on a full page. (The old
+    // scheme accumulated only over present waves, so a missing wave 9 pulled
+    // wave 6 ~126ms later.)
     static const double kRelativeDelays[10] = {
         0.0,      // wave 0 (unused)
         -0.0343,  // wave 1
@@ -286,26 +294,15 @@ static double Wave26PrefDouble(NSString *key, double defaultValue) {
         -0.1263,  // wave 8
         0.071,    // wave 9
     };
-    // Build a map of wave -> relative delay (only for waves that are present).
-    NSMutableSet *presentWaves = [NSMutableSet set];
-    for (WaveIcon *ic in self.icons) {
-        NSInteger w = [WaveTable waveForCol:ic.col row:ic.row isPad:NO orientation:self.orientation];
-        if (w >= 1 && w <= 9) [presentWaves addObject:@(w)];
-    }
-    // Accumulate the running total in wave order, but only for present waves.
-    // Each wave's relative delay is read from prefs (wX_delay) so the Settings
-    // sliders actually take effect; kRelativeDelays[w] is the default when the
-    // pref is absent.
-    NSTimeInterval running = 0.0;
+    // Precompute every wave's landing time as the sum of waves 1..w (accumulated
+    // over all waves, so it does not depend on which waves are present).
     NSMutableDictionary<NSNumber *, NSNumber *> *waveTotal = [NSMutableDictionary dictionary];
+    NSTimeInterval running = 0.0;
     for (NSInteger w = 1; w <= 9; w++) {
-        if ([presentWaves containsObject:@(w)]) {
-            double relDelay = Wave26PrefDouble([NSString stringWithFormat:@"w%ld_delay", (long)w], kRelativeDelays[w]);
-            running += relDelay;
-            waveTotal[@(w)] = @(running);
-        }
+        running += Wave26PrefDouble([NSString stringWithFormat:@"w%ld_delay", (long)w], kRelativeDelays[w]);
+        waveTotal[@(w)] = @(running);
     }
-    // Apply each icon's wave's running total.
+    // Apply each icon's wave's landing time.
     for (WaveIcon *ic in self.icons) {
         NSInteger w = [WaveTable waveForCol:ic.col row:ic.row isPad:NO orientation:self.orientation];
         NSNumber *total = waveTotal[@(w)];

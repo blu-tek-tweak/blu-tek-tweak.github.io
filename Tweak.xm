@@ -292,50 +292,142 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
     CGFloat widgetThreshold = refSize * 1.5;
 
     // Use STANDARD ICONS to detect the grid. Their centers sit at clean, evenly
-    // spaced grid positions (measured: x pitch ~87, y pitch ~95 on this device),
-    // giving correct column/row bands and pitch. A widget's center sits in the
-    // MIDDLE of the cells it spans, so including it would skew the detection.
-    // (If there are no standard icons, fall back to all views.)
+    // spaced grid positions, giving correct column/row bands. A widget's center
+    // sits in the MIDDLE of the cells it spans, so including it would skew the
+    // detection. (If there are no standard icons, fall back to all views.)
     // Standard icons: single-cell (not a widget) AND not in the bottom dock
     // region (defensive — the dock icons sit well below the grid and would
     // otherwise create a spurious 5th row band and skew the detected pitch).
     CGFloat dockTop = screen.size.height * 0.85;
     NSInteger stdIdx[MAXI]; NSInteger stdN = 0;
+    NSInteger widgetIdx[MAXI]; NSInteger widgetN = 0;
     for (NSInteger i = 0; i < n; i++) {
-        if (MAX(frames[i].size.width, frames[i].size.height) > widgetThreshold) continue;  // widget
+        if (MAX(frames[i].size.width, frames[i].size.height) > widgetThreshold) {
+            widgetIdx[widgetN++] = i;  // widget
+            continue;
+        }
         if (cyArr[i] > dockTop) continue;  // dock region
         stdIdx[stdN++] = i;
     }
     if (stdN == 0) { for (NSInteger i = 0; i < n; i++) stdIdx[stdN++] = i; }
     if (stdN < 2) return;
 
-    // --- Detect the grid from the standard icons' centers. ---
-    // Column bands: cluster the x-centers, take each band's mean. The pitch is
-    // the mean distance between adjacent means; the origin is the leftmost mean
-    // minus half a pitch (the left edge of the leftmost column).
-    CGFloat scx[MAXI], scy[MAXI];
-    for (NSInteger i = 0; i < stdN; i++) { scx[i] = cxArr[stdIdx[i]]; scy[i] = cyArr[stdIdx[i]]; }
-    for (NSInteger i = 1; i < stdN; i++) {
-        CGFloat key = scx[i]; NSInteger j = i - 1;
-        while (j >= 0 && scx[j] > key) { scx[j + 1] = scx[j]; j--; }
-        scx[j + 1] = key;
+    // --- Detect the grid PITCH from the WIDGETS' sizes. ---
+    // A widget spans an integer number of columns/rows, and its width/height is
+    // exactly (span * pitch) because iOS widgets align edge-to-edge with the
+    // column/row boundaries. So colPitch = widgetWidth / spanC, where spanC is
+    // the number of columns the widget spans. This is independent of the
+    // standard icons' positions, so a widget's presence (which displaces the
+    // standard icons and skews their column means) does NOT skew the pitch.
+    // (The old code computed colPitch from the standard icons' column means,
+    // which are skewed when a widget is present — the icons cluster in the
+    // columns the widget doesn't occupy, so their mean spacing is wrong.)
+    // spanC is detected from the widget's width relative to a standard icon's
+    // width (a standard icon is ~1 cell wide; a widget ~2x that wide spans 2
+    // columns). This adapts to any screen size (we use a ratio, not the
+    // absolute screen width).
+    CGFloat colPitch = 0, rowPitch = 0;
+    if (widgetN > 0 && stdN > 0) {
+        // Measure a standard icon's width (the median, to be robust to outliers).
+        CGFloat stdW[MAXI];
+        for (NSInteger i = 0; i < stdN; i++) stdW[i] = frames[stdIdx[i]].size.width;
+        for (NSInteger i = 1; i < stdN; i++) {
+            CGFloat key = stdW[i]; NSInteger j = i - 1;
+            while (j >= 0 && stdW[j] > key) { stdW[j + 1] = stdW[j]; j--; }
+            stdW[j + 1] = key;
+        }
+        CGFloat iconW = stdW[stdN / 2];  // median
+        if (iconW < 1) iconW = 1;
+        // For each widget, compute spanC = round(widgetWidth / iconW) and
+        // colPitch = widgetWidth / spanC. Take the median colPitch (robust to
+        // a single mis-detected widget).
+        CGFloat pitchC[MAXI]; NSInteger pitchCN = 0;
+        for (NSInteger wi = 0; wi < widgetN; wi++) {
+            NSInteger i = widgetIdx[wi];
+            NSInteger spanC = (NSInteger)lround(frames[i].size.width / iconW);
+            if (spanC < 1) spanC = 1;
+            pitchC[pitchCN++] = frames[i].size.width / spanC;
+        }
+        for (NSInteger i = 1; i < pitchCN; i++) {
+            CGFloat key = pitchC[i]; NSInteger j = i - 1;
+            while (j >= 0 && pitchC[j] > key) { pitchC[j + 1] = pitchC[j]; j--; }
+            pitchC[j + 1] = key;
+        }
+        colPitch = pitchC[pitchCN / 2];  // median
+        // Same for rowPitch, from the widgets' heights.
+        CGFloat stdH[MAXI];
+        for (NSInteger i = 0; i < stdN; i++) stdH[i] = frames[stdIdx[i]].size.height;
+        for (NSInteger i = 1; i < stdN; i++) {
+            CGFloat key = stdH[i]; NSInteger j = i - 1;
+            while (j >= 0 && stdH[j] > key) { stdH[j + 1] = stdH[j]; j--; }
+            stdH[j + 1] = key;
+        }
+        CGFloat iconH = stdH[stdN / 2];
+        if (iconH < 1) iconH = 1;
+        CGFloat pitchR[MAXI]; NSInteger pitchRN = 0;
+        for (NSInteger wi = 0; wi < widgetN; wi++) {
+            NSInteger i = widgetIdx[wi];
+            NSInteger spanR = (NSInteger)lround(frames[i].size.height / iconH);
+            if (spanR < 1) spanR = 1;
+            pitchR[pitchRN++] = frames[i].size.height / spanR;
+        }
+        for (NSInteger i = 1; i < pitchRN; i++) {
+            CGFloat key = pitchR[i]; NSInteger j = i - 1;
+            while (j >= 0 && pitchR[j] > key) { pitchR[j + 1] = pitchR[j]; j--; }
+            pitchR[j + 1] = key;
+        }
+        rowPitch = pitchR[pitchRN / 2];  // median
     }
-    CGFloat spanX = MAX(1.0, scx[stdN - 1] - scx[0]);
-    CGFloat colGap = (spanX / gridCols) * 0.5;
-    CGFloat colBandSum[MAXI]; NSInteger colBandCount[MAXI]; NSInteger colBandN = 0;
-    colBandSum[0] = scx[0]; colBandCount[0] = 1;
-    for (NSInteger i = 1; i < stdN; i++) {
-        if (scx[i] - scx[i - 1] > colGap) { colBandN++; colBandSum[colBandN] = scx[i]; colBandCount[colBandN] = 1; }
-        else { colBandSum[colBandN] += scx[i]; colBandCount[colBandN]++; }
+    // Fallback: if no widgets (or the widget-based pitch failed), compute the
+    // pitch from the standard icons' column/row means (the old behavior).
+    if (colPitch < 1) {
+        CGFloat scx[MAXI];
+        for (NSInteger i = 0; i < stdN; i++) scx[i] = cxArr[stdIdx[i]];
+        for (NSInteger i = 1; i < stdN; i++) {
+            CGFloat key = scx[i]; NSInteger j = i - 1;
+            while (j >= 0 && scx[j] > key) { scx[j + 1] = scx[j]; j--; }
+            scx[j + 1] = key;
+        }
+        CGFloat spanX = MAX(1.0, scx[stdN - 1] - scx[0]);
+        CGFloat colGap = (spanX / gridCols) * 0.5;
+        CGFloat colBandSum[MAXI]; NSInteger colBandCount[MAXI]; NSInteger colBandN = 0;
+        colBandSum[0] = scx[0]; colBandCount[0] = 1;
+        for (NSInteger i = 1; i < stdN; i++) {
+            if (scx[i] - scx[i - 1] > colGap) { colBandN++; colBandSum[colBandN] = scx[i]; colBandCount[colBandN] = 1; }
+            else { colBandSum[colBandN] += scx[i]; colBandCount[colBandN]++; }
+        }
+        CGFloat colMean[MAXI];
+        for (NSInteger i = 0; i <= colBandN; i++) colMean[i] = colBandSum[i] / colBandCount[i];
+        NSInteger colCount = colBandN + 1;
+        if (colCount > gridCols) colCount = gridCols;
+        for (NSInteger i = 1; i < colCount; i++) colPitch += (colMean[i] - colMean[i - 1]);
+        if (colCount > 1) colPitch /= (colCount - 1);
+        if (colPitch < 1) colPitch = spanX / MAX(1, colCount);
     }
-    CGFloat colMean[MAXI];
-    for (NSInteger i = 0; i <= colBandN; i++) colMean[i] = colBandSum[i] / colBandCount[i];
-    NSInteger colCount = colBandN + 1;
-    if (colCount > gridCols) colCount = gridCols;
-    CGFloat colPitch = 0;
-    for (NSInteger i = 1; i < colCount; i++) colPitch += (colMean[i] - colMean[i - 1]);
-    if (colCount > 1) colPitch /= (colCount - 1);
-    if (colPitch < 1) colPitch = spanX / MAX(1, colCount);
+    if (rowPitch < 1) {
+        CGFloat scy[MAXI];
+        for (NSInteger i = 0; i < stdN; i++) scy[i] = cyArr[stdIdx[i]];
+        for (NSInteger i = 1; i < stdN; i++) {
+            CGFloat key = scy[i]; NSInteger j = i - 1;
+            while (j >= 0 && scy[j] > key) { scy[j + 1] = scy[j]; j--; }
+            scy[j + 1] = key;
+        }
+        CGFloat spanY = MAX(1.0, scy[stdN - 1] - scy[0]);
+        CGFloat rowGap = (spanY / gridRows) * 0.5;
+        CGFloat rowBandSum[MAXI]; NSInteger rowBandCount[MAXI]; NSInteger rowBandN = 0;
+        rowBandSum[0] = scy[0]; rowBandCount[0] = 1;
+        for (NSInteger i = 1; i < stdN; i++) {
+            if (scy[i] - scy[i - 1] > rowGap) { rowBandN++; rowBandSum[rowBandN] = scy[i]; rowBandCount[rowBandN] = 1; }
+            else { rowBandSum[rowBandN] += scy[i]; rowBandCount[rowBandN]++; }
+        }
+        CGFloat rowMean[MAXI];
+        for (NSInteger i = 0; i <= rowBandN; i++) rowMean[i] = rowBandSum[i] / rowBandCount[i];
+        NSInteger rowCount = rowBandN + 1;
+        if (rowCount > gridRows) rowCount = gridRows;
+        for (NSInteger i = 1; i < rowCount; i++) rowPitch += (rowMean[i] - rowMean[i - 1]);
+        if (rowCount > 1) rowPitch /= (rowCount - 1);
+        if (rowPitch < 1) rowPitch = spanY / MAX(1, rowCount);
+    }
     // Anchor the grid's left edge to the SCREEN (centered horizontally). The
     // grid spans (gridCols * colPitch) points, centered on the screen, so the
     // left edge of col 0 is at (screenWidth - gridCols * colPitch) / 2. This is
@@ -344,28 +436,6 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
     CGFloat gridLeft = (screen.size.width - gridCols * colPitch) * 0.5;
     if (gridLeft < 0) gridLeft = 0;
 
-    // Row bands: same, on the y-centers.
-    for (NSInteger i = 1; i < stdN; i++) {
-        CGFloat key = scy[i]; NSInteger j = i - 1;
-        while (j >= 0 && scy[j] > key) { scy[j + 1] = scy[j]; j--; }
-        scy[j + 1] = key;
-    }
-    CGFloat spanY = MAX(1.0, scy[stdN - 1] - scy[0]);
-    CGFloat rowGap = (spanY / gridRows) * 0.5;
-    CGFloat rowBandSum[MAXI]; NSInteger rowBandCount[MAXI]; NSInteger rowBandN = 0;
-    rowBandSum[0] = scy[0]; rowBandCount[0] = 1;
-    for (NSInteger i = 1; i < stdN; i++) {
-        if (scy[i] - scy[i - 1] > rowGap) { rowBandN++; rowBandSum[rowBandN] = scy[i]; rowBandCount[rowBandN] = 1; }
-        else { rowBandSum[rowBandN] += scy[i]; rowBandCount[rowBandN]++; }
-    }
-    CGFloat rowMean[MAXI];
-    for (NSInteger i = 0; i <= rowBandN; i++) rowMean[i] = rowBandSum[i] / rowBandCount[i];
-    NSInteger rowCount = rowBandN + 1;
-    if (rowCount > gridRows) rowCount = gridRows;
-    CGFloat rowPitch = 0;
-    for (NSInteger i = 1; i < rowCount; i++) rowPitch += (rowMean[i] - rowMean[i - 1]);
-    if (rowCount > 1) rowPitch /= (rowCount - 1);
-    if (rowPitch < 1) rowPitch = spanY / MAX(1, rowCount);
     // Anchor the grid's top edge to the topmost view's TOP EDGE (across ALL
     // views, including widgets). The grid's top row starts at the topmost
     // view's top edge, which aligns with the grid's top boundary. This is
@@ -394,7 +464,7 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
             // the cell within its span closest to the grid center.
             NSInteger topC = (colPitch > 0) ? (NSInteger)floor((CGRectGetMinX(frames[i]) - gridLeft) / colPitch) : 0;
             NSInteger topR = (rowPitch > 0) ? (NSInteger)floor((CGRectGetMinY(frames[i]) - gridTop) / rowPitch) : 0;
-            if (topC < 0) topC = 0; if (topC >= colCount) topC = colCount - 1;
+            if (topC < 0) topC = 0; if (topC >= gridCols) topC = gridCols - 1;
             if (topR < 0) topR = 0; if (topR >= gridRows) topR = gridRows - 1;
             NSInteger spanC = (colPitch > 0) ? (NSInteger)lround(frames[i].size.width / colPitch) : 1;
             NSInteger spanR = (rowPitch > 0) ? (NSInteger)lround(frames[i].size.height / rowPitch) : 1;
@@ -405,14 +475,14 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
             for (NSInteger dc = 0; dc < spanC; dc++) {
                 for (NSInteger dr = 0; dr < spanR; dr++) {
                     NSInteger cc = topC + dc, rr = topR + dr;
-                    if (cc < 0 || cc >= colCount || rr < 0 || rr >= gridRows) continue;
+                    if (cc < 0 || cc >= gridCols || rr < 0 || rr >= gridRows) continue;
                     CGFloat dx = cc - gridCenter.x, dy = rr - gridCenter.y;
                     CGFloat dist = dx * dx + dy * dy;
                     if (dist < bestDist) { bestDist = dist; c = cc; r = rr; }
                 }
             }
         }
-        if (c < 0) c = 0; if (c >= colCount) c = colCount - 1;
+        if (c < 0) c = 0; if (c >= gridCols) c = gridCols - 1;
         if (r < 0) r = 0; if (r >= gridRows) r = gridRows - 1;
         [g_engine registerIcon:views[i] col:c row:r];
     }
@@ -893,9 +963,9 @@ static void wave26_watchTick(void) {
     // Armed (icons had gone away). They're back -> we just arrived home: fire.
     // wave26_homeArrived (root-folder hook) will have already fired for a
     // home-button / AssistiveTouch unlock, so this is a no-op there.
+    g_armed = NO;
     g_homeVisible = YES;
     g_locked = NO;
-    g_armed = NO;
     wave26_log(@"watch: unlock/arrival detected (home icons returned)");
     // Let the settle finish a hair before we anchor the wave.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.12 * NSEC_PER_SEC)),
