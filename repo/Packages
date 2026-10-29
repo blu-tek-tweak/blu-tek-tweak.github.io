@@ -61,3 +61,35 @@ MD5Sum: 6c311d47f4c495729a87eed4fa4caff3
 SHA1: da8b3981533606754dfcd0973d3e41c1fd26595a
 SHA256: f04b4b761a1f2b56917b0836aeca03bc9d9b2c27ee513cd4f1875dec1fedccbc
 SHA512: 0900bf4bdf354bb617e8a16b5e757ea2430254d018cbaa00af44f0d8ffb9df5c2d3cb88a6f048d19a8e9049f0e94438e67071f2502cbac707b2d9ec3874a54d1
+
+Package: com.blu-tek.26passcode
+Name: 26Passcode
+Description: Passcode fly-in animation with spring physics
+Author: blu_tek
+Maintainer: blu_tek
+Section: Tweaks
+Architecture: iphoneos-arm64
+Version: 1.0.0-50+debug
+Installed-Size: 15
+Filename: pools/letterc/com.blu-tek.26passcode_1.0.0-50+debug_iphoneos-arm64.deb
+Size: 14994
+MD5Sum: 0e658cf64fc63b514ad30ac1491bbeea
+SHA1: e952c3a2d167416bb67b45551ae5b42dac7143b1
+SHA256: e9e684b56969d015f6e3e130b7dd326aac9f429a7899c11cfb9c26a7afb3cfcf
+SHA512: da954b7a77234db1c3a72d645eeb7eb871620b90bf45ad08b760a7875ed805029232f94f90432ba6e5a1a36ceb24edbb532c3bd1887bef7fd441825050bae2bc
+
+Package: com.blu-tek.26passcode
+Name: 26Passcode
+Description: Passcode fly-in animation with spring physics
+Author: blu_tek
+Maintainer: blu_tek
+Section: Tweaks
+Architecture: iphoneos-arm64
+Version: 1.0.0-56+debug
+Installed-Size: 15
+Filename: pools/letterc/com.blu-tek.26passcode_1.0.0-56+debug_iphoneos-arm64.deb
+Size: 15276
+MD5Sum: 938199803a22b5fef3af9feb635dabd5
+SHA1: 21aed932e8dde383a547dde148ce0d11c0852f60
+SHA256: f723e6d91b4c919302ab02a4c2fa260754c451c225f8f18a1fdb29af342186d7
+SHA512: 29cf710fad322118eecfc5408d25818f43da109a10a1b7e4b95f0d6dce731953d38cf5c74e7f54e3de5991ec3273c2c0816c3a1baefaacda24e726f2c6b76fde
