@@ -1,6 +1,6 @@
 THEOS_DEVICE_IP ?= localhost
 export THEOS_DEVICE_IP
-export ARCHS = arm64e
+export ARCHS = arm64 arm64e
 export TARGET = iphone:clang:latest:16.0
 # Rootless (Dopamine): use the rootless package scheme. This links against the
 # @rpath CydiaSubstrate framework (resolvable on rootless) and stages into
