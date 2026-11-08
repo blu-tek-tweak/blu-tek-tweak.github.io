@@ -5,6 +5,7 @@
 #import <unistd.h>
 #import <stdlib.h>
 #import <stdio.h>
+#import "WaveDefaults.h"
 
 // The Settings app loads this bundle and instantiates the class named by
 // NSPrincipalClass in Info.plist (26WavePrefsRootListController). It subclasses
@@ -67,8 +68,20 @@
 - (NSArray *)specifiers {
     if (!_specifiers) {
         _specifiers = [self loadSpecifiersFromPlistName:@"Root"
-                                               target:self
-                                               bundle:[NSBundle bundleForClass:[self class]]];
+                                                target:self
+                                                bundle:[NSBundle bundleForClass:[self class]]];
+        for (PSSpecifier *specifier in _specifiers) {
+            NSString *key = [specifier propertyForKey:@"key"];
+            NSNumber *value = key ? Wave26DefaultPreferences()[key] : nil;
+            if (!value) continue;
+            [specifier setProperty:value forKey:@"default"];
+            // Preserve the saved first-group mass even though it exceeds the
+            // old slider range. The engine's existing global mass rule remains.
+            NSNumber *maximum = [specifier propertyForKey:@"max"];
+            if (maximum && value.doubleValue > maximum.doubleValue) {
+                [specifier setProperty:@100.0 forKey:@"max"];
+            }
+        }
     }
     return _specifiers;
 }

@@ -6,6 +6,7 @@
 #import <string.h>
 #import "WaveEngine.h"
 #import "WaveTable.h"
+#import "WaveGrid.h"
 
 @interface NSDistributedNotificationCenter : NSObject
 + (instancetype)defaultCenter;
@@ -44,23 +45,24 @@ static BOOL wave26_isPad(void) {
     return [[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad;
 }
 
-// Current orientation as a WaveOrientation. Portrait -> vertical; landscape ->
-// horizontal. (Used only for the iPad; the iPhone map is orientation-agnostic.)
+// Use the rendered interface orientation, so a face-up device keeps the active
+// layout. (Used only for iPad; the iPhone map is orientation-agnostic.)
 // On iOS 15 we always report vertical (the single-idiom fallback).
 static WaveOrientation wave26_currentOrientation(void) {
     if (!wave26_isIOS16OrLater()) return WaveOrientationVertical;
-    UIDeviceOrientation o = [UIDevice currentDevice].orientation;
-    switch (o) {
-        case UIDeviceOrientationLandscapeLeft:
-        case UIDeviceOrientationLandscapeRight:
-        case UIDeviceOrientationFaceUp:      // treat face-up as landscape (default iPad)
-            return WaveOrientationHorizontal;
-        case UIDeviceOrientationPortrait:
-        case UIDeviceOrientationPortraitUpsideDown:
-        case UIDeviceOrientationFaceDown:
-        default:
-            return WaveOrientationVertical;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) continue;
+        UIWindowScene *windowScene = (UIWindowScene *)scene;
+        if (windowScene.activationState != UISceneActivationStateForegroundActive) continue;
+        UIInterfaceOrientation orientation = windowScene.interfaceOrientation;
+        if (orientation != UIInterfaceOrientationUnknown) {
+            return UIInterfaceOrientationIsLandscape(orientation)
+                ? WaveOrientationHorizontal : WaveOrientationVertical;
+        }
     }
+    CGRect bounds = UIScreen.mainScreen.bounds;
+    return bounds.size.width > bounds.size.height
+        ? WaveOrientationHorizontal : WaveOrientationVertical;
 }
 
 #pragma mark - State
@@ -237,21 +239,78 @@ static void wave26_stripAnimations(UIView *view) {
 
 #pragma mark - Register + fire
 
+// SpringBoard coordinates are one-based (row, column). Grid sizes are cell
+// counts, not point sizes; their ABI is two unsigned shorts on iOS 16+.
+typedef struct { NSInteger row; NSInteger column; } Wave26IconCoordinate;
+typedef struct { unsigned short width; unsigned short height; } Wave26GridSize;
+
+@protocol Wave26IconModel <NSObject>
+- (NSUInteger)gridSizeClass;
+@end
+
+@protocol Wave26IconView <NSObject>
+- (id<Wave26IconModel>)icon;
+@end
+
+@protocol Wave26IconList <NSObject>
+- (Wave26IconCoordinate)coordinateForIcon:(id)icon;
+- (NSUInteger)iconColumnsForCurrentOrientation;
+- (NSUInteger)iconRowsForCurrentOrientation;
+- (Wave26GridSize)iconGridSizeForClass:(NSUInteger)sizeClass;
+@end
+
+static BOOL wave26_registerFromLayout(UIView *view, WaveOrientation orientation) {
+    if (!wave26_isIOS16OrLater() || ![view respondsToSelector:@selector(icon)]) return NO;
+    id<Wave26IconModel> icon = [(id<Wave26IconView>)view icon];
+    if (!icon) return NO;
+    UIView *ancestor = view.superview;
+    while (ancestor && ![ancestor respondsToSelector:@selector(coordinateForIcon:)]) {
+        ancestor = ancestor.superview;
+    }
+    if (!ancestor ||
+        ![ancestor respondsToSelector:@selector(iconColumnsForCurrentOrientation)] ||
+        ![ancestor respondsToSelector:@selector(iconRowsForCurrentOrientation)]) return NO;
+    id<Wave26IconList> list = (id<Wave26IconList>)ancestor;
+    NSInteger cols = [list iconColumnsForCurrentOrientation];
+    NSInteger rows = [list iconRowsForCurrentOrientation];
+    if (cols < 1 || rows < 1 || cols > 64 || rows > 64) return NO;
+    Wave26IconCoordinate coordinate = [list coordinateForIcon:icon];
+    if (coordinate.column < 1 || coordinate.column > cols ||
+        coordinate.row < 1 || coordinate.row > rows) return NO;
+    Wave26GridSize span = {1, 1};
+    if ([icon respondsToSelector:@selector(gridSizeClass)] &&
+        [ancestor respondsToSelector:@selector(iconGridSizeForClass:)]) {
+        span = [list iconGridSizeForClass:[icon gridSizeClass]];
+    }
+    NSInteger firstCol = coordinate.column - 1, firstRow = coordinate.row - 1;
+    // Preserve the widget's earliest, center-facing cell. This works even on
+    // widget-only/sparse pages and is independent of icon size and cell gaps.
+    // Custom/zoomed layouts may have different cell counts. Map their full
+    // extent onto the wave table instead of clamping extra rows to one wave.
+    NSInteger waveCols = [WaveTable colsForIsPad:g_isPad orientation:orientation];
+    NSInteger waveRows = [WaveTable rowsForIsPad:g_isPad orientation:orientation];
+    Wave26GridCell cell = Wave26MapGridSpan(firstCol, firstRow, span.width, span.height,
+                                          cols, rows, waveCols, waveRows);
+    [g_engine registerIcon:view col:cell.column row:cell.row];
+    return YES;
+}
+
 static void wave26_registerHome(NSArray *icons, UIView *dock) {
     // A sparse home page may not have enough icons for grid registration, but
     // its dock should still animate (and must replace the previous dock).
     [g_engine setDockView:dock];
-    CGRect screen = [UIScreen mainScreen].bounds;
+    WaveOrientation orient = wave26_currentOrientation();
+    UIWindow *window = [(UIView *)icons.firstObject window];
+    CGRect screen = window ? window.bounds : UIScreen.mainScreen.bounds;
     NSMutableArray *filtered = [NSMutableArray array];
     for (UIView *v in icons) {
         if (isInDock(v, dock)) continue;
-        CGRect f = [v convertRect:v.bounds toView:nil];
-        if (CGRectIsNull(f)) continue;
-        CGPoint c = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
-        if (c.x < 0 || c.x > screen.size.width || c.y < 0 || c.y > screen.size.height) continue;
+        if (wave26_registerFromLayout(v, orient)) continue;
+        CGRect f = [v convertRect:v.bounds toView:window];
+        if (CGRectIsNull(f) || CGRectIsEmpty(f) || !CGRectIntersectsRect(f, screen)) continue;
         [filtered addObject:v];
     }
-    if (filtered.count < 4) return;
+    if (filtered.count == 0) return;
 
     UIView *pageView = filtered[0];
     while (pageView.superview && pageView.bounds.size.width < screen.size.width * 0.9) {
@@ -263,7 +322,6 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
 
     // Idiom + orientation-aware grid dimensions (iPhone 4x6; iPad vertical 5x6,
     // horizontal 6x5).
-    WaveOrientation orient = wave26_currentOrientation();
     NSInteger gridCols = [WaveTable colsForIsPad:g_isPad orientation:orient];
     NSInteger gridRows = [WaveTable rowsForIsPad:g_isPad orientation:orient];
 
@@ -280,7 +338,7 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
         cyArr[n] = CGRectGetMidY(frames[n]);
         n++;
     }
-    if (n < 4) return;
+    if (n == 0) return;
 
     // Separate WIDGETS (multi-cell) from standard ICONS (single-cell). A widget
     // is detected RELATIVELY (adapts to any screen size): it is at least ~1.5x
@@ -294,92 +352,21 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
     // Use STANDARD ICONS to detect the grid. Their centers sit at clean, evenly
     // spaced grid positions, giving correct column/row bands. A widget's center
     // sits in the MIDDLE of the cells it spans, so including it would skew the
-    // detection. (If there are no standard icons, fall back to all views.)
-    // Standard icons: single-cell (not a widget) AND not in the bottom dock
-    // region (defensive — the dock icons sit well below the grid and would
-    // otherwise create a spurious 5th row band and skew the detected pitch).
-    CGFloat dockTop = screen.size.height * 0.85;
+    // detection. Widget-only pages use the logical-layout path above.
+    // Dock membership was already checked by ancestry; a screen-height cutoff
+    // would incorrectly discard the bottom home row on compact displays.
     NSInteger stdIdx[MAXI]; NSInteger stdN = 0;
-    NSInteger widgetIdx[MAXI]; NSInteger widgetN = 0;
     for (NSInteger i = 0; i < n; i++) {
         if (MAX(frames[i].size.width, frames[i].size.height) > widgetThreshold) {
-            widgetIdx[widgetN++] = i;  // widget
             continue;
         }
-        if (cyArr[i] > dockTop) continue;  // dock region
         stdIdx[stdN++] = i;
     }
-    if (stdN == 0) { for (NSInteger i = 0; i < n; i++) stdIdx[stdN++] = i; }
-    if (stdN < 2) return;
+    if (stdN == 0) return;
 
-    // --- Detect the grid PITCH from the WIDGETS' sizes. ---
-    // A widget spans an integer number of columns/rows, and its width/height is
-    // exactly (span * pitch) because iOS widgets align edge-to-edge with the
-    // column/row boundaries. So colPitch = widgetWidth / spanC, where spanC is
-    // the number of columns the widget spans. This is independent of the
-    // standard icons' positions, so a widget's presence (which displaces the
-    // standard icons and skews their column means) does NOT skew the pitch.
-    // (The old code computed colPitch from the standard icons' column means,
-    // which are skewed when a widget is present — the icons cluster in the
-    // columns the widget doesn't occupy, so their mean spacing is wrong.)
-    // spanC is detected from the widget's width relative to a standard icon's
-    // width (a standard icon is ~1 cell wide; a widget ~2x that wide spans 2
-    // columns). This adapts to any screen size (we use a ratio, not the
-    // absolute screen width).
+    // Compatibility fallback: derive pitch from standard icon centers. Widget
+    // dimensions omit cell gaps and must never be used as the grid pitch.
     CGFloat colPitch = 0, rowPitch = 0;
-    if (widgetN > 0 && stdN > 0) {
-        // Measure a standard icon's width (the median, to be robust to outliers).
-        CGFloat stdW[MAXI];
-        for (NSInteger i = 0; i < stdN; i++) stdW[i] = frames[stdIdx[i]].size.width;
-        for (NSInteger i = 1; i < stdN; i++) {
-            CGFloat key = stdW[i]; NSInteger j = i - 1;
-            while (j >= 0 && stdW[j] > key) { stdW[j + 1] = stdW[j]; j--; }
-            stdW[j + 1] = key;
-        }
-        CGFloat iconW = stdW[stdN / 2];  // median
-        if (iconW < 1) iconW = 1;
-        // For each widget, compute spanC = round(widgetWidth / iconW) and
-        // colPitch = widgetWidth / spanC. Take the median colPitch (robust to
-        // a single mis-detected widget).
-        CGFloat pitchC[MAXI]; NSInteger pitchCN = 0;
-        for (NSInteger wi = 0; wi < widgetN; wi++) {
-            NSInteger i = widgetIdx[wi];
-            NSInteger spanC = (NSInteger)lround(frames[i].size.width / iconW);
-            if (spanC < 1) spanC = 1;
-            pitchC[pitchCN++] = frames[i].size.width / spanC;
-        }
-        for (NSInteger i = 1; i < pitchCN; i++) {
-            CGFloat key = pitchC[i]; NSInteger j = i - 1;
-            while (j >= 0 && pitchC[j] > key) { pitchC[j + 1] = pitchC[j]; j--; }
-            pitchC[j + 1] = key;
-        }
-        colPitch = pitchC[pitchCN / 2];  // median
-        // Same for rowPitch, from the widgets' heights.
-        CGFloat stdH[MAXI];
-        for (NSInteger i = 0; i < stdN; i++) stdH[i] = frames[stdIdx[i]].size.height;
-        for (NSInteger i = 1; i < stdN; i++) {
-            CGFloat key = stdH[i]; NSInteger j = i - 1;
-            while (j >= 0 && stdH[j] > key) { stdH[j + 1] = stdH[j]; j--; }
-            stdH[j + 1] = key;
-        }
-        CGFloat iconH = stdH[stdN / 2];
-        if (iconH < 1) iconH = 1;
-        CGFloat pitchR[MAXI]; NSInteger pitchRN = 0;
-        for (NSInteger wi = 0; wi < widgetN; wi++) {
-            NSInteger i = widgetIdx[wi];
-            NSInteger spanR = (NSInteger)lround(frames[i].size.height / iconH);
-            if (spanR < 1) spanR = 1;
-            pitchR[pitchRN++] = frames[i].size.height / spanR;
-        }
-        for (NSInteger i = 1; i < pitchRN; i++) {
-            CGFloat key = pitchR[i]; NSInteger j = i - 1;
-            while (j >= 0 && pitchR[j] > key) { pitchR[j + 1] = pitchR[j]; j--; }
-            pitchR[j + 1] = key;
-        }
-        rowPitch = pitchR[pitchRN / 2];  // median
-    }
-    // Fallback: if no widgets (or the widget-based pitch failed), compute the
-    // pitch from the standard icons' column/row means (the old behavior).
     if (colPitch < 1) {
         CGFloat scx[MAXI];
         for (NSInteger i = 0; i < stdN; i++) scx[i] = cxArr[stdIdx[i]];
@@ -400,9 +387,12 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
         for (NSInteger i = 0; i <= colBandN; i++) colMean[i] = colBandSum[i] / colBandCount[i];
         NSInteger colCount = colBandN + 1;
         if (colCount > gridCols) colCount = gridCols;
-        for (NSInteger i = 1; i < colCount; i++) colPitch += (colMean[i] - colMean[i - 1]);
-        if (colCount > 1) colPitch /= (colCount - 1);
-        if (colPitch < 1) colPitch = spanX / MAX(1, colCount);
+        colPitch = pageView.bounds.size.width / gridCols;
+        if (colCount > 1) {
+            CGFloat minGap = INFINITY;
+            for (NSInteger i = 1; i < colCount; i++) minGap = MIN(minGap, colMean[i] - colMean[i - 1]);
+            colPitch = minGap / MAX(1, (NSInteger)lround(minGap / colPitch));
+        }
     }
     if (rowPitch < 1) {
         CGFloat scy[MAXI];
@@ -424,17 +414,17 @@ static void wave26_registerHome(NSArray *icons, UIView *dock) {
         for (NSInteger i = 0; i <= rowBandN; i++) rowMean[i] = rowBandSum[i] / rowBandCount[i];
         NSInteger rowCount = rowBandN + 1;
         if (rowCount > gridRows) rowCount = gridRows;
-        for (NSInteger i = 1; i < rowCount; i++) rowPitch += (rowMean[i] - rowMean[i - 1]);
-        if (rowCount > 1) rowPitch /= (rowCount - 1);
-        if (rowPitch < 1) rowPitch = spanY / MAX(1, rowCount);
+        rowPitch = pageView.bounds.size.height / gridRows;
+        if (rowCount > 1) {
+            CGFloat minGap = INFINITY;
+            for (NSInteger i = 1; i < rowCount; i++) minGap = MIN(minGap, rowMean[i] - rowMean[i - 1]);
+            rowPitch = minGap / MAX(1, (NSInteger)lround(minGap / rowPitch));
+        }
     }
-    // Anchor the grid's left edge to the SCREEN (centered horizontally). The
-    // grid spans (gridCols * colPitch) points, centered on the screen, so the
-    // left edge of col 0 is at (screenWidth - gridCols * colPitch) / 2. This is
-    // robust on sparse/irregular layouts where the leftmost standard icon isn't
-    // in col 0 (the center-based origin would misplace it).
-    CGFloat gridLeft = (screen.size.width - gridCols * colPitch) * 0.5;
-    if (gridLeft < 0) gridLeft = 0;
+    // Center in the same page coordinate space as the measured frames, even
+    // when its bounds are offset or differ from the main screen's dimensions.
+    CGFloat gridLeft = CGRectGetMidX(pageView.bounds) - gridCols * colPitch * 0.5;
+    if (colPitch < 1 || rowPitch < 1) return;
 
     // Anchor the grid's top edge to the topmost view's TOP EDGE (across ALL
     // views, including widgets). The grid's top row starts at the topmost

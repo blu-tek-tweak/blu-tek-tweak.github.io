@@ -1,5 +1,6 @@
 #import "WaveEngine.h"
 #import "WaveTable.h"
+#import "WaveDefaults.h"
 
 #pragma mark - Tuning
 
@@ -143,7 +144,7 @@ static double Wave26PrefDouble(NSString *key, double defaultValue) {
     dispatch_once(&once, ^{
         Wave26LoadPrefsOnce();
     });
-    id raw = [sWavePrefsCache objectForKey:key];
+    id raw = [sWavePrefsCache objectForKey:key] ?: Wave26DefaultPreferences()[key];
     if (!raw) return defaultValue;
     return [raw doubleValue];
 }
