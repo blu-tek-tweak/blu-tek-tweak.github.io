@@ -141,3 +141,20 @@ MD5Sum: a240d9ad9b7e27c8a1639a31d57db2b2
 SHA1: 52146552d665cf06e81ba457bb99d35ff56ed4cc
 SHA256: 4fe931a23faef3ddec7a847e68105d677bebfa02070dcb66f2bd3c7336e6ade4
 SHA512: d36ac827509c233a227b54e8f3d226cf6cb689b4dc9672cd849a60a35760ce125394516efee608a58aec0f0762f96ba3ed2061e5dec9bd206b2a6d6a35a80485
+
+Package: com.blutek.kaleidoscope16
+Name: Kaleidoscope 16
+Description: iOS 17 Kaleidoscope wallpapers for iOS 16, with native gallery integration.
+Author: blu_tek
+Maintainer: blu_tek
+Section: Tweaks
+Depends: firmware (>= 16.0), firmware (<< 17.0)
+Architecture: iphoneos-arm64
+Version: 0.2.14
+Installed-Size: 116496
+Filename: pools/letterc/com.blutek.kaleidoscope16_0.2.14_iphoneos-arm64.deb
+Size: 98105558
+MD5Sum: d5a062288898234ce541880b67fb9fe3
+SHA1: df8d166e053fd37f1189beef0e7050f2c87e8784
+SHA256: 81056088d1cfccf560d384281ca30c7b86cd0d0b34cd0f1e8582b20f59c1e592
+SHA512: 5180a5edd26bbb1fe89253fa7583c120f5768e40d3219cf4ea041f15b70449ff2fe1fc7d67ea44c42c8febb5a36d74bf5c09d93e794a193ba4e81bcb9d9ca0db
