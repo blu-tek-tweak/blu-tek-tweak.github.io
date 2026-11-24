@@ -78,22 +78,6 @@ SHA1: 6bb019331dd1c041780d647d6dcba0f750bf8549
 SHA256: e6af000fe943250b5ca065665ddc49a9e13d114c912f57c2a70cd26fd07d93ea
 SHA512: 2fc7789171e9aaee52b69e79b764d26cd7f8f7bec37302e88ac54f5ac6e4df9cffd7f267036297ebd5152243d280dd380994484e76c1871a12ab997bc5983b85
 
-Package: com.blu-tek.27status
-Name: 27Status
-Description: iOS 27-style battery icon - no border, smaller text, rounder corners
-Author: blu_tek
-Maintainer: blu_tek
-Section: Tweaks
-Architecture: iphoneos-arm64
-Version: 1.0.63
-Installed-Size: 112
-Filename: pools/letterc/com.blu-tek.27status_1.0.63_iphoneos-arm64.deb
-Size: 19642
-MD5Sum: 6c311d47f4c495729a87eed4fa4caff3
-SHA1: da8b3981533606754dfcd0973d3e41c1fd26595a
-SHA256: f04b4b761a1f2b56917b0836aeca03bc9d9b2c27ee513cd4f1875dec1fedccbc
-SHA512: 0900bf4bdf354bb617e8a16b5e757ea2430254d018cbaa00af44f0d8ffb9df5c2d3cb88a6f048d19a8e9049f0e94438e67071f2502cbac707b2d9ec3874a54d1
-
 Package: com.blu-tek.26passcode
 Name: 26Passcode
 Description: Passcode fly-in animation with spring physics
@@ -158,3 +142,19 @@ MD5Sum: d5a062288898234ce541880b67fb9fe3
 SHA1: df8d166e053fd37f1189beef0e7050f2c87e8784
 SHA256: 81056088d1cfccf560d384281ca30c7b86cd0d0b34cd0f1e8582b20f59c1e592
 SHA512: 5180a5edd26bbb1fe89253fa7583c120f5768e40d3219cf4ea041f15b70449ff2fe1fc7d67ea44c42c8febb5a36d74bf5c09d93e794a193ba4e81bcb9d9ca0db
+
+Package: com.blu-tek.27status
+Name: 27Status
+Description: iOS 27-style battery icon - no border, smaller text, rounder corners
+Author: blu_tek
+Maintainer: blu_tek
+Section: Tweaks
+Architecture: iphoneos-arm64
+Version: 1.0.63-10+debug
+Installed-Size: 172
+Filename: pools/letterc/com.blu-tek.27status_1.0.63-10+debug_iphoneos-arm64.deb
+Size: 36122
+MD5Sum: 77318e73793b0c7649238ef4bee14133
+SHA1: c17ac598290d039ad04fcb171a9c0c72917d443e
+SHA256: 572ec9f7b00bf5fcfa267cf64441810262739f346d97ea3628b27fd79a4bf289
+SHA512: c4dd442f3ad1cf96932dfdded8ba1b928b626d52401630b4a892a486dd5c1171ffe04bce3e0492e45e5e86d9fd8c0dac1b47cef7b29dfa3a947b54b61ab8245f
